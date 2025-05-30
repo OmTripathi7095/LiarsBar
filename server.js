@@ -21,7 +21,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/join', (req, res) => {
-  res.render('join');   // placeholder, your friend will work here
+  res.render('join');   
 });
 
 app.get('/create', (req, res) => {
@@ -35,7 +35,6 @@ app.get('/rules', (req, res) => {
 // Socket.IO (empty for now)
 io.on('connection', socket => {
   console.log('→ New client connected:', socket.id);
-  // future handlers: join-room, play-cards, etc.
 });
 
 // Start server
