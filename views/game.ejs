@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Game – Room <%= roomCode %></title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .card { display:inline-block; padding:8px 12px; margin:4px; border:1px solid #333; cursor:pointer; }
+    .card.selected { background:#ffc; border-color:#cc0; }
+    #turn-info { margin:16px 0; font-weight:bold; }
+  </style>
+</head>
+<body>
+  <h1>Room: <%= roomCode %></h1>
+  <h2>You are: <%= currentUser %></h2>
+
+  <section id="table-info">
+    <p>Card of the Table: <span id="card-of-table">?</span></p>
+  </section>
+
+  <div id="turn-info">Waiting for game to start…</div>
+
+  <section id="hand-section">
+    <h3>Your Hand:</h3>
+    <div id="hand"></div>
+  </section>
+
+  <section id="actions">
+    <button id="play-btn" disabled>Play Selected</button>
+    <button id="call-liar-btn" disabled>Call Liar</button>
+  </section>
+
+  <section id="messages"></section>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket      = io();
+    const roomCode    = '<%= roomCode %>';
+    const currentUser = '<%= currentUser %>';
+    let playersOrder  = [];
+    let selected      = [];
+    let lastPlay      = null;
+
+    function renderHand(hand) {
+      const handDiv = document.getElementById('hand');
+      handDiv.innerHTML = '';
+      selected = [];
+      document.getElementById('play-btn').disabled = true;
+
+      hand.forEach((card, idx) => {
+        const span = document.createElement('span');
+        span.textContent = card;
+        span.dataset.idx = idx;
+        span.classList.add('card');
+        span.onclick = () => {
+          const i = selected.indexOf(idx);
+          if (i === -1) {
+            selected.push(idx); span.classList.add('selected');
+          } else {
+            selected.splice(i,1); span.classList.remove('selected');
+          }
+          document.getElementById('play-btn').disabled = (selected.length === 0);
+        };
+        handDiv.appendChild(span);
+      });
+    }
+
+    function updateTurn(turnIndex) {
+      const turnInfo = document.getElementById('turn-info');
+      const playBtn  = document.getElementById('play-btn');
+      const liarBtn  = document.getElementById('call-liar-btn');
+      if (!playersOrder.length) return;
+
+      const current = playersOrder[turnIndex];
+      if (current === currentUser) {
+        turnInfo.textContent = 'Your turn!';
+        playBtn.disabled = (selected.length === 0);
+        // Only enable liar if there is a lastPlay
+        liarBtn.disabled = !lastPlay;
+      } else {
+        turnInfo.textContent = `${current}’s turn…`;
+        playBtn.disabled = true;
+        liarBtn.disabled = true;
+      }
+    }
+
+    // 1) Ask for state
+    socket.emit('join-game', { roomCode, username: currentUser });
+
+    // 2) Receive initial state (or after host starts)
+    socket.on('game-state', ({ cardOfTable, hand, turnIndex, players, lastPlay: lp }) => {
+      playersOrder = players;
+      lastPlay     = lp;
+      document.getElementById('card-of-table').textContent = cardOfTable;
+      renderHand(hand || []);
+      updateTurn(turnIndex);
+    });
+    socket.on('game-started', ({ cardOfTable, hands, turnIndex, players, lastPlay: lp }) => {
+      playersOrder = players;
+      lastPlay     = lp;
+      document.getElementById('card-of-table').textContent = cardOfTable;
+      renderHand(hands[currentUser] || []);
+      updateTurn(turnIndex);
+    });
+
+    // 3) Play Selected
+    document.getElementById('play-btn').onclick = () => {
+      socket.emit('play-cards', { roomCode, username: currentUser, indices: selected });
+      playBtn.disabled = true;
+    };
+
+    // 4) Call Liar
+    document.getElementById('call-liar-btn').onclick = () => {
+      socket.emit('call-liar', { roomCode, username: currentUser });
+      document.getElementById('call-liar-btn').disabled = true;
+    };
+
+    // 5) Logs, hand updates, turn changes…
+    socket.on('log', msg => {
+      const d = document.createElement('div'); d.textContent = msg;
+      document.getElementById('messages').appendChild(d);
+    });
+    socket.on('update-hand', hand => renderHand(hand));
+    socket.on('turn-changed', ({ turnIndex }) => updateTurn(turnIndex));
+    socket.on('error', alert);
+  </script>
+</body>
+</html>

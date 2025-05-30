@@ -1,7 +1,24 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Join Room</title></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Join Room</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
 <body>
-  <h1>Join Room (work in progress)</h1>
+  <h1>Join a Room</h1>
+  <form action="/join" method="POST">
+    <label>
+      Your Username:
+      <input type="text" name="username" required placeholder="e.g. AshKetchum">
+    </label>
+    <br><br>
+    <label>
+      Room Code:
+      <input type="text" name="code" required maxlength="6" placeholder="ABC123">
+    </label>
+    <br><br>
+    <button type="submit">Join Room</button>
+  </form>
 </body>
 </html>

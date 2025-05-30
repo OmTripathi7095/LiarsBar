@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lobby – Room <%= roomCode %></title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <h1>Room: <%= roomCode %></h1>
+  <h2>Host: <%= host %></h2>
+
+  <section>
+    <h3>Players Joined (<span id="count"><%= players.length %></span>/4):</h3>
+    <ul id="player-list">
+      <% players.forEach(name => { %>
+        <li><%= name %></li>
+      <% }) %>
+    </ul>
+  </section>
+
+  <% if (isHost) { %>
+    <button id="start-game">Start Game</button>
+  <% } else { %>
+    <p>Waiting for <strong><%= host %></strong> to start…</p>
+  <% } %>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket      = io();
+    const roomCode    = '<%= roomCode %>';
+    const currentUser = '<%= currentUser %>';
+
+    // 1) Join the Socket.IO room on load
+    socket.emit('join-room', { roomCode, username: currentUser });
+
+    // 2) Re-render the player list whenever it changes
+    socket.on('player-list', players => {
+      const ul = document.getElementById('player-list');
+      ul.innerHTML = '';                 // clear existing
+      players.forEach(name => {
+        const li = document.createElement('li');
+        li.textContent = name;
+        ul.appendChild(li);
+      });
+      document.getElementById('count').textContent = players.length;
+    });
+
+    // 3) Host clicking “Start Game”
+    document.getElementById('start-game')?.addEventListener('click', () => {
+      socket.emit('start-game', { roomCode });
+    });
+
+    // 4) Redirect everyone when game starts
+    socket.on('game-started', () => {
+      window.location.href = `/game/${roomCode}?username=${encodeURIComponent(currentUser)}`;
+    });
+  </script>
+</body>
+</html>
