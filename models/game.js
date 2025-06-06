@@ -2,43 +2,64 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
+// Sub‐schema for the last play, including “finished”
+const prevPlaySchema = new Schema({
+  by:        { type: String },
+  cards:     { type: [String], default: [] },
+  turnIndex: { type: Number },
+  finished:  { type: Boolean, default: false }
+}, { _id: false });
+
+// Sub‐schema for a player’s revolver state
+const revolverSchema = new Schema({
+  bulletPosition: { type: Number, required: true }, // 0..5
+  shotsTaken:     { type: Number, default: 0 }       // how many empty pulls so far
+}, { _id: false });
+
 const gameSchema = new Schema({
   roomCode: {
     type: String,
     required: true,
     uppercase: true,
-    length: 6,
+    length: 6
   },
   cardOfTable: {
     type: String,
     enum: ['A', 'K', 'Q'],
-    required: true,
+    required: true
   },
-  lastPlay: {
-  by:     String,             // username
-  cards:  [String],           // e.g. ['K','JOKER']
-  turnIndex: Number
+  prevPlay: {
+    type: prevPlaySchema,
+    default: null
   },
-  turnIndex: { type: Number, default: 0 },
+  turnIndex: {
+    type: Number,
+    default: 0
+  },
   deck: {
     type: [String],
-    default: [],
+    default: []
   },
   hands: {
     type: Map,
     of: [String],
-    default: {},
+    default: {}
   },
-  turnIndex: {
-    type: Number,
-    default: 0,
+  revolvers: {
+    type: Map,
+    of: revolverSchema,
+    default: {}
   },
   eliminated: {
-    type: [String],   // list of usernames who’ve died
-    default: [],
+    type: [String],
+    default: []
   },
+  winners: {
+    type: [String],
+    default: []
+  }
 }, {
-  timestamps: true,
+  timestamps: true
 });
 
 module.exports = mongoose.model('Game', gameSchema);

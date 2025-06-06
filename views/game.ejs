@@ -5,9 +5,35 @@
   <title>Game – Room <%= roomCode %></title>
   <link rel="stylesheet" href="/styles.css" />
   <style>
-    .card { display:inline-block; padding:8px 12px; margin:4px; border:1px solid #333; cursor:pointer; }
-    .card.selected { background:#ffc; border-color:#cc0; }
-    #turn-info { margin:16px 0; font-weight:bold; }
+    .card {
+      display: inline-block;
+      padding: 8px 12px;
+      margin: 4px;
+      border: 1px solid #333;
+      cursor: pointer;
+      user-select: none;
+    }
+    .card.selected {
+      background: #ffc;
+      border-color: #cc0;
+    }
+    #turn-info {
+      margin: 16px 0;
+      font-weight: bold;
+    }
+    #messages {
+      margin-top: 24px;
+      max-height: 200px;
+      overflow-y: auto;
+      border-top: 1px solid #ccc;
+      padding-top: 8px;
+    }
+    #winner-list {
+      margin-top: 24px;
+      border-top: 1px solid #888;
+      padding-top: 8px;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -15,7 +41,7 @@
   <h2>You are: <%= currentUser %></h2>
 
   <section id="table-info">
-    <p>Card of the Table: <span id="card-of-table">?</span></p>
+    <p><strong>Card of the Table:</strong> <span id="card-of-table">?</span></p>
   </section>
 
   <div id="turn-info">Waiting for game to start…</div>
@@ -32,22 +58,26 @@
 
   <section id="messages"></section>
 
+  <!-- NEW: Will show the list of winners (empty until game-over) -->
+  <section id="winner-list"></section>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket      = io();
     const roomCode    = '<%= roomCode %>';
     const currentUser = '<%= currentUser %>';
-    let playersOrder  = [];
-    let selected      = [];
-    let lastPlay      = null;
+
+    let playersOrder = [];
+    let selected     = [];
+    let prevPlay     = null;
+    let winners      = [];   // copy of winners array
 
     function renderHand(hand) {
       const handDiv = document.getElementById('hand');
       handDiv.innerHTML = '';
       selected = [];
       document.getElementById('play-btn').disabled = true;
-
-      hand.forEach((card, idx) => {
+      (hand || []).forEach((card, idx) => {
         const span = document.createElement('span');
         span.textContent = card;
         span.dataset.idx = idx;
@@ -55,9 +85,11 @@
         span.onclick = () => {
           const i = selected.indexOf(idx);
           if (i === -1) {
-            selected.push(idx); span.classList.add('selected');
+            selected.push(idx);
+            span.classList.add('selected');
           } else {
-            selected.splice(i,1); span.classList.remove('selected');
+            selected.splice(i, 1);
+            span.classList.remove('selected');
           }
           document.getElementById('play-btn').disabled = (selected.length === 0);
         };
@@ -69,14 +101,19 @@
       const turnInfo = document.getElementById('turn-info');
       const playBtn  = document.getElementById('play-btn');
       const liarBtn  = document.getElementById('call-liar-btn');
-      if (!playersOrder.length) return;
+
+      if (!playersOrder.length) {
+        turnInfo.textContent = 'Waiting for players…';
+        playBtn.disabled = true;
+        liarBtn.disabled = true;
+        return;
+      }
 
       const current = playersOrder[turnIndex];
       if (current === currentUser) {
         turnInfo.textContent = 'Your turn!';
         playBtn.disabled = (selected.length === 0);
-        // Only enable liar if there is a lastPlay
-        liarBtn.disabled = !lastPlay;
+        liarBtn.disabled = !(prevPlay && prevPlay.by !== currentUser);
       } else {
         turnInfo.textContent = `${current}’s turn…`;
         playBtn.disabled = true;
@@ -84,45 +121,103 @@
       }
     }
 
-    // 1) Ask for state
+    function appendLog(text) {
+      const d = document.createElement('div');
+      d.textContent = text;
+      document.getElementById('messages').appendChild(d);
+    }
+
+    function renderWinnersList() {
+      const div = document.getElementById('winner-list');
+      if (!winners.length) {
+        div.textContent = '';
+        return;
+      }
+      // Show in order: 1st → last
+      div.innerHTML = '<strong>Winners in order:</strong><br>' + winners.map((p, idx) => {
+        return `${idx + 1}. ${p}`;
+      }).join('<br>');
+    }
+
+    // 1) Ask for initial state
     socket.emit('join-game', { roomCode, username: currentUser });
 
-    // 2) Receive initial state (or after host starts)
-    socket.on('game-state', ({ cardOfTable, hand, turnIndex, players, lastPlay: lp }) => {
-      playersOrder = players;
-      lastPlay     = lp;
-      document.getElementById('card-of-table').textContent = cardOfTable;
-      renderHand(hand || []);
-      updateTurn(turnIndex);
-    });
-    socket.on('game-started', ({ cardOfTable, hands, turnIndex, players, lastPlay: lp }) => {
-      playersOrder = players;
-      lastPlay     = lp;
+    // 2) Full game-state
+    socket.on('game-state', ({ cardOfTable, hands, turnIndex, players, prevPlay: p, winners: w }) => {
+      playersOrder = players.slice();
+      prevPlay     = p;
+      winners      = w.slice();  // copy
       document.getElementById('card-of-table').textContent = cardOfTable;
       renderHand(hands[currentUser] || []);
       updateTurn(turnIndex);
+      renderWinnersList();
     });
 
-    // 3) Play Selected
+    // 3) A play was made
+    socket.on('play-made', ({ by, count, turnIndex, finished }) => {
+      appendLog(`${by} played ${count} card(s).`);
+      prevPlay = { by, finished };
+      updateTurn(turnIndex);
+      if (finished) {
+        appendLog(`${by} has emptied their hand! Next player may call liar or let them win.`);
+      }
+    });
+
+    // 4) Liar result
+    socket.on('liar-result', ({ caller, target, wasLie }) => {
+      const msg = wasLie
+        ? `${caller} called liar on ${target}. ${target} lied!`
+        : `${caller} called liar on ${target}. ${target} was truthful!`;
+      appendLog(msg);
+      if (!wasLie && prevPlay && prevPlay.finished) {
+        appendLog(`${target} wins by emptying their hand!`);
+      }
+      prevPlay = null;
+    });
+
+    // 5) Player shot (result of the revolver pull)
+    socket.on('player-shot', ({ player, died }) => {
+      if (died) {
+        appendLog(`${player} pulled the trigger and died!`);
+      } else {
+        appendLog(`${player} pulled the trigger and survived.`);
+      }
+    });
+
+    // 6) Player won (emptied hand successfully)
+    socket.on('player-won', ({ winner }) => {
+      appendLog(`${winner} has won this round by emptying their hand!`);
+    });
+
+    // 7) Turn changed
+    socket.on('turn-changed', ({ turnIndex }) => {
+      updateTurn(turnIndex);
+    });
+
+    // 8) Updated hand
+    socket.on('update-hand', hand => renderHand(hand));
+
+    // 9) Game over → receive full winners list
+    socket.on('game-over', ({ winners: w }) => {
+      winners = w.slice();
+      renderWinnersList();
+      alert('Game over! Check the winner list above.');
+    });
+
+    // 10) Out‐of‐turn or invalid move
+    socket.on('game-error', alert);
+
+    // 11) “Play Selected” button
     document.getElementById('play-btn').onclick = () => {
       socket.emit('play-cards', { roomCode, username: currentUser, indices: selected });
-      playBtn.disabled = true;
+      document.getElementById('play-btn').disabled = true;
     };
 
-    // 4) Call Liar
+    // 12) “Call Liar” button
     document.getElementById('call-liar-btn').onclick = () => {
       socket.emit('call-liar', { roomCode, username: currentUser });
       document.getElementById('call-liar-btn').disabled = true;
     };
-
-    // 5) Logs, hand updates, turn changes…
-    socket.on('log', msg => {
-      const d = document.createElement('div'); d.textContent = msg;
-      document.getElementById('messages').appendChild(d);
-    });
-    socket.on('update-hand', hand => renderHand(hand));
-    socket.on('turn-changed', ({ turnIndex }) => updateTurn(turnIndex));
-    socket.on('error', alert);
   </script>
 </body>
 </html>
