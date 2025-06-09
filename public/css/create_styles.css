@@ -1,0 +1,76 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Orbitron', sans-serif;
+  background: linear-gradient(rgba(10, 10, 10, 0.75), rgba(10, 10, 10, 0.75)),
+              url('create_room_bg.jpg') no-repeat center center fixed;
+  background-size: cover;
+  color: #f2f2f2;
+}
+
+h1 {
+  text-align: center;
+  margin-top: 80px;
+  font-size: 40px;
+  font-weight: 600;
+}
+
+form {
+  max-width: 380px;
+  margin: 40px auto;
+  padding: 30px;
+  background-color: rgba(20, 20, 20, 0.85);
+  border-radius: 10px;
+}
+
+label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #ddd;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #444;
+  border-radius: 6px;
+  background-color: #1e1e1e;
+  color: #fff;
+  font-size: 15px;
+}
+
+input[type="text"]::placeholder {
+  color: #aaa;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 25px;
+  font-size: 16px;
+  background-color: #457b9d;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #35667e;
+}
+
+p {
+  text-align: center;
+  margin-top: 20px;
+}
+
+a {
+  color: #f2f2f2;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
