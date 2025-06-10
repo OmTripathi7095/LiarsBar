@@ -1,0 +1,107 @@
+body {
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #fff;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5)),
+              url('main_game_bg.png') no-repeat center center fixed;
+  background-size: cover;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+/* Game container inside the table area */
+.game-container {
+  background-color: rgba(0, 0, 0, 0.7); /* translucent black box over the table */
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+  width: 90%;
+  max-width: 800px;
+  margin: 40px auto;
+}
+
+h1, h2, h3 {
+  text-align: center;
+  margin: 12px 0;
+}
+
+#table-info {
+  text-align: center;
+  margin-top: 10px;
+}
+
+#hand-section, #actions, #messages, #winner-list {
+  width: 100%;
+  margin: 20px auto;
+  text-align: center;
+}
+
+#hand {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 2px solid #999;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.card:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.card.selected {
+  background: #f9f9f9;
+  color: #000;
+  border-color: #000000;
+  font-weight: bold;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 16px;
+  margin: 8px;
+  border: none;
+  border-radius: 8px;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+#turn-info {
+  font-weight: bold;
+  font-size: 18px;
+  margin-top: 16px;
+  text-align: center;
+}
+
+#messages {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 10px;
+  border-radius: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+#winner-list {
+  font-style: italic;
+  font-size: 16px;
+  margin-top: 20px;
+  text-align: center;
+}

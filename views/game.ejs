@@ -3,63 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <title>Game – Room <%= roomCode %></title>
-  <link rel="stylesheet" href="/styles.css" />
-  <style>
-    .card {
-      display: inline-block;
-      padding: 8px 12px;
-      margin: 4px;
-      border: 1px solid #333;
-      cursor: pointer;
-      user-select: none;
-    }
-    .card.selected {
-      background: #ffc;
-      border-color: #cc0;
-    }
-    #turn-info {
-      margin: 16px 0;
-      font-weight: bold;
-    }
-    #messages {
-      margin-top: 24px;
-      max-height: 200px;
-      overflow-y: auto;
-      border-top: 1px solid #ccc;
-      padding-top: 8px;
-    }
-    #winner-list {
-      margin-top: 24px;
-      border-top: 1px solid #888;
-      padding-top: 8px;
-      font-style: italic;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/game_styles.css" />
 </head>
-<body>
-  <h1>Room: <%= roomCode %></h1>
-  <h2>You are: <%= currentUser %></h2>
+<body class="game-room">
 
-  <section id="table-info">
-    <p><strong>Card of the Table:</strong> <span id="card-of-table">?</span></p>
-  </section>
+  <div class="overlay"></div>
 
-  <div id="turn-info">Waiting for game to start…</div>
+  <main class="game-container">
+    <h1>Room: <%= roomCode %></h1>
+    <h2 id="current-turn">Waiting for turn info…</h2>
 
-  <section id="hand-section">
-    <h3>Your Hand:</h3>
-    <div id="hand"></div>
-  </section>
+    <section id="table-info">
+      <p><strong>Card of the Table:</strong> <span id="card-of-table">?</span></p>
+    </section>
 
-  <section id="actions">
-    <button id="play-btn" disabled>Play Selected</button>
-    <button id="call-liar-btn" disabled>Call Liar</button>
-  </section>
+    <div id="turn-info" class="turn-message">Waiting for game to start…</div>
 
-  <section id="messages"></section>
+    <section id="hand-section">
+      <h3>Your Hand:</h3>
+      <div id="hand"></div>
+    </section>
 
-  <!-- NEW: Will show the list of winners (empty until game-over) -->
-  <section id="winner-list"></section>
+    <section id="actions">
+      <button id="play-btn" disabled>Play Selected</button>
+      <button id="call-liar-btn" disabled>Call Liar</button>
+    </section>
+
+    <section id="messages" class="game-log"></section>
+
+    <section id="winner-list" class="winner-section"></section>
+  </main>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -70,7 +43,7 @@
     let playersOrder = [];
     let selected     = [];
     let prevPlay     = null;
-    let winners      = [];   // copy of winners array
+    let winners      = [];
 
     function renderHand(hand) {
       const handDiv = document.getElementById('hand');
@@ -99,17 +72,21 @@
 
     function updateTurn(turnIndex) {
       const turnInfo = document.getElementById('turn-info');
+      const currentTurn = document.getElementById('current-turn');
       const playBtn  = document.getElementById('play-btn');
       const liarBtn  = document.getElementById('call-liar-btn');
 
       if (!playersOrder.length) {
         turnInfo.textContent = 'Waiting for players…';
+        currentTurn.textContent = '';
         playBtn.disabled = true;
         liarBtn.disabled = true;
         return;
       }
 
       const current = playersOrder[turnIndex];
+      currentTurn.textContent = `Current Turn: ${current}`;
+
       if (current === currentUser) {
         turnInfo.textContent = 'Your turn!';
         playBtn.disabled = (selected.length === 0);
@@ -125,6 +102,7 @@
       const d = document.createElement('div');
       d.textContent = text;
       document.getElementById('messages').appendChild(d);
+      d.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
 
     function renderWinnersList() {
@@ -133,27 +111,23 @@
         div.textContent = '';
         return;
       }
-      // Show in order: 1st → last
-      div.innerHTML = '<strong>Winners in order:</strong><br>' + winners.map((p, idx) => {
+      div.innerHTML = '<strong>🏆 Winners in order:</strong><br>' + winners.map((p, idx) => {
         return `${idx + 1}. ${p}`;
       }).join('<br>');
     }
 
-    // 1) Ask for initial state
     socket.emit('join-game', { roomCode, username: currentUser });
 
-    // 2) Full game-state
     socket.on('game-state', ({ cardOfTable, hands, turnIndex, players, prevPlay: p, winners: w }) => {
       playersOrder = players.slice();
       prevPlay     = p;
-      winners      = w.slice();  // copy
+      winners      = w.slice();
       document.getElementById('card-of-table').textContent = cardOfTable;
       renderHand(hands[currentUser] || []);
       updateTurn(turnIndex);
       renderWinnersList();
     });
 
-    // 3) A play was made
     socket.on('play-made', ({ by, count, turnIndex, finished }) => {
       appendLog(`${by} played ${count} card(s).`);
       prevPlay = { by, finished };
@@ -163,7 +137,6 @@
       }
     });
 
-    // 4) Liar result
     socket.on('liar-result', ({ caller, target, wasLie }) => {
       const msg = wasLie
         ? `${caller} called liar on ${target}. ${target} lied!`
@@ -175,45 +148,33 @@
       prevPlay = null;
     });
 
-    // 5) Player shot (result of the revolver pull)
     socket.on('player-shot', ({ player, died }) => {
-      if (died) {
-        appendLog(`${player} pulled the trigger and died!`);
-      } else {
-        appendLog(`${player} pulled the trigger and survived.`);
-      }
+      appendLog(`${player} pulled the trigger and ${died ? 'died!' : 'survived.'}`);
     });
 
-    // 6) Player won (emptied hand successfully)
     socket.on('player-won', ({ winner }) => {
       appendLog(`${winner} has won this round by emptying their hand!`);
     });
 
-    // 7) Turn changed
     socket.on('turn-changed', ({ turnIndex }) => {
       updateTurn(turnIndex);
     });
 
-    // 8) Updated hand
     socket.on('update-hand', hand => renderHand(hand));
 
-    // 9) Game over → receive full winners list
     socket.on('game-over', ({ winners: w }) => {
       winners = w.slice();
       renderWinnersList();
       alert('Game over! Check the winner list above.');
     });
 
-    // 10) Out‐of‐turn or invalid move
     socket.on('game-error', alert);
 
-    // 11) “Play Selected” button
     document.getElementById('play-btn').onclick = () => {
       socket.emit('play-cards', { roomCode, username: currentUser, indices: selected });
       document.getElementById('play-btn').disabled = true;
     };
 
-    // 12) “Call Liar” button
     document.getElementById('call-liar-btn').onclick = () => {
       socket.emit('call-liar', { roomCode, username: currentUser });
       document.getElementById('call-liar-btn').disabled = true;

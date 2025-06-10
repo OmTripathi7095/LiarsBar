@@ -1,11 +1,11 @@
-// sockets/room.js
 const Room = require('../models/room');
 const Game = require('../models/game');
 const { buildDeck, shuffle, deal } = require('../utils/deck');
 
 module.exports = (io) => {
   io.on('connection', socket => {
-    // 1) When any client joins a lobby, subscribe them to that room and broadcast players
+
+    // 1) Join Room
     socket.on('join-room', async ({ roomCode, username }) => {
       socket.join(roomCode);
       const room = await Room.findOne({ code: roomCode }).populate('players', 'username');
@@ -14,12 +14,9 @@ module.exports = (io) => {
       io.to(roomCode).emit('player-list', players);
     });
 
-    // 2) Host clicks “Start Game” in the lobby
+    // 2) Start Game
     socket.on('start-game', async ({ roomCode }) => {
-      // a) Update room status to in-progress
       await Room.findOneAndUpdate({ code: roomCode }, { status: 'in-progress' });
-
-      // b) Build, shuffle, and deal the deck
       const room = await Room.findOne({ code: roomCode }).populate('players', 'username');
       if (!room) return;
       const players = room.players.map(p => p.username);
@@ -27,7 +24,6 @@ module.exports = (io) => {
       const deck = shuffle(buildDeck());
       const { hands, deck: remaining } = deal(deck, players);
 
-      // c) Pick one shared “card of the table”
       const options = ['A','K','Q'];
       const cardOfTable = options[Math.floor(Math.random() * options.length)];
 
@@ -39,8 +35,7 @@ module.exports = (io) => {
         });
       });
 
-      // d) Persist the new Game document
-      const newGame = await Game.create({
+      await Game.create({
         roomCode,
         cardOfTable,
         deck: remaining,
@@ -48,13 +43,10 @@ module.exports = (io) => {
         turnIndex: 0,
         prevPlay: null,
         eliminated: [],
-        revolvers: revolversMap    // pass the map you just built
+        revolvers: revolversMap
       });
 
-      // e) Tell everyone in the lobby to redirect to /game/:roomCode
       io.to(roomCode).emit('lobby-game-started');
-
-      // f) Also emit a “game-started” payload for anyone already on the game page
       io.to(roomCode).emit('game-started', {
         cardOfTable,
         hands,
@@ -62,6 +54,27 @@ module.exports = (io) => {
         players,
         prevPlay: null
       });
+    });
+
+    // 3) Leave Room
+    socket.on('leave-room', async ({ roomCode, username, isHost }) => {
+      const room = await Room.findOne({ code: roomCode });
+
+      if (!room) return;
+
+      if (isHost) {
+        await Room.deleteOne({ code: roomCode });
+      } else {
+        room.players = room.players.filter(p => p.username !== username);
+        await room.save();
+      }
+
+      // Emit updated player list
+      const updatedRoom = await Room.findOne({ code: roomCode }).populate('players', 'username');
+      const players = updatedRoom ? updatedRoom.players.map(p => p.username) : [];
+      io.to(roomCode).emit('player-list', players);
+
+      socket.leave(roomCode);
     });
 
     socket.on('disconnect', () => {

@@ -2,59 +2,104 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Lobby – Room <%= roomCode %></title>
-  <link rel="stylesheet" href="/styles.css">
+  <title>Lobby - Room <%- roomCode %></title>
+  <link rel="stylesheet" href="/css/room_styles.css">
 </head>
 <body>
-  <h1>Room: <%= roomCode %></h1>
-  <h2>Host: <%= host %></h2>
+  <div class="lobby-container">
+    <div class="room-header">
+      <h1>Welcome to the Lobby</h1>
+    </div>
 
-  <section>
-    <h3>Players Joined (<span id="count"><%= players.length %></span>/4):</h3>
-    <ul id="player-list">
-      <% players.forEach(name => { %>
-        <li><%= name %></li>
-      <% }) %>
-    </ul>
-  </section>
+    <div class="room-code-container">
+      <h2>Room Code: <%- roomCode %></h2>
+      <button id="copy-button" class="copy-button">Copy Code</button>
+      <span id="copy-confirmation" class="copy-confirmation">Copied!</span>
+    </div>
 
-  <% if (isHost) { %>
-    <button id="start-game">Start Game</button>
-  <% } else { %>
-    <p>Waiting for <strong><%= host %></strong> to start…</p>
-  <% } %>
+    <h2>Host: <%- host %></h2>
+
+    <section class="player-section">
+      <h3>Players Joined (<span id="count"><%- players.length %></span>/4):</h3>
+      <ul id="player-list">
+        <% players.forEach(function(name) { %>
+          <li><%- name %></li>
+        <% }); %>
+      </ul>
+    </section>
+
+    <div class="button-group">
+      <% if (isHost) { %>
+        <button id="start-game" class="start-button">Start Game</button>
+      <% } else { %>
+        <p class="waiting-text">Waiting for <strong><%- host %></strong> to start...</p>
+      <% } %>
+      <button id="leave-room" class="leave-button">Back to Home</button>
+    </div>
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket      = io();
-    const roomCode    = '<%= roomCode %>';
-    const currentUser = '<%= currentUser %>';
+    // Initialize variables from EJS template
+    const socket = io();
+    const roomCode = '<%- roomCode %>';
+    const currentUser = '<%- currentUser %>';
+    const isHost = '<%- isHost %>';
 
-    // 1) Join the Socket.IO room on load
-    socket.emit('join-room', { roomCode, username: currentUser });
+    // Join room
+    socket.emit('join-room', { 
+      roomCode: roomCode, 
+      username: currentUser 
+    });
 
-    // 2) Re-render the player list whenever it changes
-    socket.on('player-list', players => {
-      const ul = document.getElementById('player-list');
-      ul.innerHTML = '';                 // clear existing
-      players.forEach(name => {
+    // Player list updates
+    socket.on('player-list', function(players) {
+      const playerList = document.getElementById('player-list');
+      const countElement = document.getElementById('count');
+      
+      playerList.innerHTML = '';
+      players.forEach(function(name) {
         const li = document.createElement('li');
         li.textContent = name;
-        ul.appendChild(li);
+        playerList.appendChild(li);
       });
-      document.getElementById('count').textContent = players.length;
+      countElement.textContent = players.length;
     });
 
-    // 3) Host clicking “Start Game”
-    document.getElementById('start-game')?.addEventListener('click', () => {
-      socket.emit('start-game', { roomCode });
+    // Start game button (only for host)
+    if (document.getElementById('start-game')) {
+      document.getElementById('start-game').addEventListener('click', function() {
+        socket.emit('start-game', { roomCode: roomCode });
+      });
+    }
+
+    // Game started event
+    socket.on('game-started', function() {
+      window.location.href = '/game/' + encodeURIComponent(roomCode) + 
+                           '?username=' + encodeURIComponent(currentUser);
     });
 
-    // 4) Redirect everyone when game starts
-    socket.on('game-started', () => {
-      window.location.href = `/game/${roomCode}?username=${encodeURIComponent(currentUser)}`;
+    // Copy room code
+    document.getElementById('copy-button').addEventListener('click', function() {
+      navigator.clipboard.writeText(roomCode)
+        .then(function() {
+          const confirmation = document.getElementById('copy-confirmation');
+          confirmation.style.opacity = 1;
+          setTimeout(function() {
+            confirmation.style.opacity = 0;
+          }, 2000);
+        });
     });
-   
+
+    // Leave room
+    document.getElementById('leave-room').addEventListener('click', function() {
+      socket.emit('leave-room', { 
+        roomCode: roomCode, 
+        username: currentUser, 
+        isHost: isHost 
+      });
+      window.location.href = '/';
+    });
   </script>
 </body>
 </html>
